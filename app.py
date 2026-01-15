@@ -16,7 +16,7 @@ st.set_page_config(
 # ==========================================
 hide_streamlit_style = """
 <style>
-    /* 隱藏 Streamlit 預設元素，模擬原生 App */
+    /* 隱藏 Streamlit 預設元素 */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -37,6 +37,19 @@ hide_streamlit_style = """
     .date-warning {
         padding: 10px; border-radius: 8px; font-size: 0.9em; margin-top: 5px;
         background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404;
+    }
+    
+    /* 桃園出發 專屬標籤樣式 */
+    .origin-badge {
+        background-color: #E9ECEF; 
+        color: #1F2937;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 900;
+        font-size: 1.2em;
+        display: inline-block;
+        margin-bottom: 15px;
+        border: 2px solid #DEE2E6;
     }
 </style>
 """
@@ -207,13 +220,13 @@ class FPCRF_Strategy_Engine:
 
         # --- 策略生成邏輯 ---
         
-        # A. 火車策略
+        # A. 火車策略 (以桃園為起點)
         if "火車" in selected_modes or "全部" in selected_modes:
             train_time = 2.5 + (time_offset * 0.8) 
             ticket_difficulty = 95 if base_entropy > 80 else 60
             if south_link_score > 50: ticket_difficulty += 5
             
-            # [修正] 獲取真實車次
+            # 獲取真實車次
             real_train = self.get_nearest_train(departure_hour)
             
             strategies.append({
@@ -226,7 +239,7 @@ class FPCRF_Strategy_Engine:
                 "tags": ["舒適", "極難訂"]
             })
             
-            # 如果是北花蓮/中花蓮，顯示區間車備案
+            # 區間車備案 (樹林始發)
             if county == "花蓮縣" and south_link_score < 50:
                  strategies.append({
                     "mode": "🚆 區間快 (樹林始發)", 
@@ -234,10 +247,10 @@ class FPCRF_Strategy_Engine:
                     "time_cost": f"{train_time + 1.5:.1f}hr",
                     "pain_index": 70, 
                     "success_rate": 99,
-                    "advice": "樹林始發絕對有位，雖慢但穩。", "tags": ["保底"]
+                    "advice": "建議先從桃園搭車到樹林，再轉乘此始發車。", "tags": ["保底"]
                 })
 
-        # B. 開車策略
+        # B. 開車策略 (以桃園為起點)
         if "開車" in selected_modes or "全部" in selected_modes:
             base_drive_time = 3.5 + time_offset
             jam_factor = 1.0 if is_god_mode else (1 + (final_entropy / 100) * 2.5)
@@ -246,7 +259,7 @@ class FPCRF_Strategy_Engine:
             
             strategies.append({
                 "mode": "🚗 自行開車 (蘇花改)", 
-                "details": f"{departure_hour}:00 出發",
+                "details": f"桃園 ➔ {township_key.split(' ')[0]}",
                 "time_cost": f"{total_drive_time:.1f}hr",
                 "pain_index": min(100, drive_pain), 
                 "success_rate": 100,
@@ -256,7 +269,7 @@ class FPCRF_Strategy_Engine:
             
             strategies.append({
                 "mode": "💸 包車/白牌",
-                "details": "到府接送",
+                "details": "桃園到府接送",
                 "time_cost": f"{total_drive_time:.1f}hr",
                 "pain_index": 10,
                 "success_rate": 90,
@@ -264,22 +277,22 @@ class FPCRF_Strategy_Engine:
                 "tags": ["鈔能力"]
             })
 
-        # C. 混合/高鐵策略
+        # C. 混合/高鐵策略 (以桃園為起點)
         if "混合模式" in selected_modes or "全部" in selected_modes:
             strategies.append({
                 "mode": "🚅+🚄 高鐵北迴轉乘", 
-                "details": "桃園 ➔ 台北 ➔ 東部幹線",
+                "details": "桃園HSR ➔ 台北 ➔ 東部幹線",
                 "time_cost": f"{3.0 + (time_offset * 0.8):.1f}hr", 
                 "pain_index": 30, 
                 "success_rate": 40 if base_entropy > 80 else 70,
-                "advice": "用金錢換取避開國道塞車。", "tags": ["效率"]
+                "advice": "用高鐵跳過桃園-台北的國道塞車。", "tags": ["效率"]
             })
             
             if south_link_score >= 50:
                 south_time = 1.5 + 2.5 + ((100 - south_link_score)/100)
                 strategies.append({
                     "mode": "🔄 高鐵南迴大迂迴",
-                    "details": f"桃園 ➔ 左營 ➔ {township_key.split(' ')[0]}",
+                    "details": f"桃園HSR ➔ 左營 ➔ {township_key.split(' ')[0]}",
                     "time_cost": f"{south_time:.1f}hr", 
                     "pain_index": 25, 
                     "success_rate": 80, 
@@ -292,7 +305,7 @@ class FPCRF_Strategy_Engine:
              strategies.append({
                 "mode": "✈️ 飛機空運",
                 "details": f"松山 ➔ {county[:2]}",
-                "time_cost": "2.5hr", 
+                "time_cost": "2.5hr (含桃園到松山車程)", 
                 "pain_index": 15, 
                 "success_rate": 5 if base_entropy > 80 else 40,
                 "advice": "非設籍居民候補是大賭局。", "tags": ["豪賭"]
@@ -318,8 +331,13 @@ def login_page():
             st.error("❌ 密碼錯誤")
 
 def main_app():
+    # 標題區
     st.markdown("<h3 style='margin-bottom:0px; color:#E63946;'>🧨 三一協會過年返鄉攻略</h3>", unsafe_allow_html=True)
-    st.markdown("<p style='color:gray; font-size:0.9em;'>v9.5 | 絕對完整版</p>", unsafe_allow_html=True)
+    
+    # [新增] 桃園出發 明顯標示
+    st.markdown("<div class='origin-badge'>📍 桃園出發</div>", unsafe_allow_html=True)
+    
+    st.markdown("<p style='color:gray; font-size:0.9em;'>v9.6 | 桃園市三一協會專用版</p>", unsafe_allow_html=True)
     
     tab1, tab2 = st.tabs(["📅 戰略規劃", "🎫 搶票密技"])
     
