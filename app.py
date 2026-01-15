@@ -49,9 +49,10 @@ class StrategyEngine:
     
     def get_driving_advice(self, date_str, hour):
         """邏輯 1: 如果開車，怎麼開最快"""
-        is_jam_day = "2/13" in date_str or "2/14" in date_str or "2/21" in date_str
+        # [修正] 根據 2026 真實行事曆定義塞車日 (2/13-2/15)
+        is_jam_day = "2/13" in date_str or "2/14" in date_str or "2/15" in date_str
         
-        # God Mode 判斷
+        # God Mode 判斷 (凌晨 3-5 點)
         if 3 <= hour <= 5:
             return "🟢 **[God Mode]** 這是唯一的「物理倖存時段」。國5全線暢通，現在出發最快。", 1.0, "暢通"
         elif 6 <= hour <= 15 and is_jam_day:
@@ -102,7 +103,7 @@ def main_app():
     st.markdown("<div class='origin-badge'>📍 桃園全區出發</div>", unsafe_allow_html=True)
     
     # ----------------------------------------
-    # Step 1: 你的條件是什麼？ (Condition)
+    # Step 1: 你的條件是什麼？
     # ----------------------------------------
     st.markdown("<div class='step-title'>1. 請問您的目前狀況？</div>", unsafe_allow_html=True)
     user_status = st.radio(
@@ -114,7 +115,7 @@ def main_app():
     )
     
     # ----------------------------------------
-    # Step 2: 目的地與時間 (Parameters)
+    # Step 2: 目的地與時間
     # ----------------------------------------
     st.markdown("---")
     st.markdown("<div class='step-title'>2. 目的地與時間</div>", unsafe_allow_html=True)
@@ -124,7 +125,15 @@ def main_app():
         county = st.selectbox("縣市", ["花蓮縣", "台東縣"])
         township = st.selectbox("鄉鎮", TOWNSHIP_DB[county])
     with c2:
-        date_str = st.selectbox("日期", ["2/12 (四) 提早", "2/13 (五) 塞爆", "2/14 (六) 初一", "2/16 (一) 除夕"])
+        # [修正] 2026 正確農曆日期對照
+        date_str = st.selectbox("日期", [
+            "2/13 (五) 假期前1天 (下班狂奔)",
+            "2/14 (六) 連假第1天 (返鄉車潮)", # [修正] 這天不是初一
+            "2/15 (日) 小年夜 (最後採買)",   # [修正] 這天是小年夜
+            "2/16 (一) 除夕 (圍爐)",         # [修正] 這天是除夕
+            "2/17 (二) 初一 (走春)"          # [修正] 這天才是初一
+        ])
+        
         # 根據不同情境顯示不同時間輸入方式
         if "開車" in user_status:
             hour = st.slider("預計出發 (24h)", 0, 23, 7)
@@ -146,9 +155,8 @@ def main_app():
             real_time = base_time * jam_factor
             
             st.markdown(f"#### 🚘 開車戰略報告")
-            st.info(f"**目的地:** {township}")
+            st.info(f"**目的地:** {township} | **日期:** {date_str.split(' ')[0]}")
             
-            # 結果卡片
             with st.container(border=True):
                 st.markdown(f"### 預估耗時: {real_time:.1f} 小時")
                 st.markdown(advice)
@@ -172,14 +180,13 @@ def main_app():
                     st.markdown(f"📍 路線: `{plan['route']}`")
                     st.markdown(f"💡 {plan['desc']}")
 
-        # === 情境 C: 有票 (時刻表確認) ===
+        # === 情境 C: 有票 (確認) ===
         else:
             st.markdown(f"#### ✅ 行程確認")
             st.success("恭喜有票！請確認以下接駁資訊：")
             st.markdown(f"- **出發地:** 桃園/中壢火車站")
             st.markdown(f"- **抵達地:** {township}")
             
-            # 簡易接駁提示
             if "豐濱" in township:
                 st.info("💡 抵達花蓮站後，請轉搭 **花蓮客運 1140/1145** 往海線。")
             elif "富里" in township or "玉里" in township:
