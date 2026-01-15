@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import random
 
 # ==========================================
 # Layer 0: 頁面基礎設定
@@ -12,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS 極致優化 (針對手機豎屏操作優化)
+# CSS 優化 (主要針對進入後的「主程式」優化手機體驗，不影響登入頁結構)
 st.markdown("""
 <style>
     /* 隱藏預設元素 */
@@ -23,20 +22,16 @@ st.markdown("""
     /* 容器調整 */
     .block-container {padding-top: 1.5rem; padding-bottom: 3rem;}
     
-    /* 按鈕美化 */
+    /* 按鈕美化 (全域) */
     .stButton > button {
         border-radius: 12px; 
-        height: 3.8em; 
+        height: 3.5em; 
         font-weight: bold; 
         font-size: 1.1rem;
         width: 100%;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        transition: all 0.2s;
     }
-    .stButton > button:active {
-        transform: scale(0.98);
-    }
-
+    
     /* 資訊卡片風格 */
     .info-card {
         background-color: #F8F9FA;
@@ -44,7 +39,6 @@ st.markdown("""
         padding: 15px;
         border-radius: 8px;
         margin-bottom: 15px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
     /* 標籤徽章 */
@@ -53,10 +47,6 @@ st.markdown("""
         border-radius: 16px; font-weight: 900; font-size: 0.9em;
         display: inline-block; margin-bottom: 5px; border: 1px solid #CED4DA;
     }
-    
-    /* 強調字體 */
-    .highlight-red { color: #E63946; font-weight: bold; }
-    .highlight-green { color: #2A9D8F; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -102,26 +92,22 @@ class StrategyEngine:
             advice['hov_warning'] = None
 
         # 2. 路況判定
-        if 2 <= hour <= 5:
+        if 3 <= hour <= 5:
             advice['status'] = "🟢 God Mode (神之領域)"
             advice['desc'] = "這是唯一的「物理倖存時段」。全線暢通，現在出發你是贏家。"
             advice['jam_factor'] = 1.0
-            advice['score'] = 100
         elif 6 <= hour <= 15 and is_jam_day:
             advice['status'] = "🔴 Suicide Run (停車場模式)"
             advice['desc'] = "國5現在是大型停車場。建議等到晚上 22:00 後再出發，或改走台2線濱海(雖遠但會動)。"
             advice['jam_factor'] = 2.8
-            advice['score'] = 20
         elif 16 <= hour <= 21 and is_jam_day:
             advice['status'] = "🟠 Struggle (痛苦緩解中)"
             advice['desc'] = "車流開始緩慢移動，但仍需排隊進雪隧。建議先吃晚餐，忍到 22:00 後。"
             advice['jam_factor'] = 1.8
-            advice['score'] = 50
         else:
             advice['status'] = "⚪ Normal (一般路況)"
             advice['desc'] = "車流正常，注意車距即可。"
             advice['jam_factor'] = 1.1
-            advice['score'] = 90
             
         return advice
 
@@ -279,20 +265,19 @@ def main_app():
              
         st.link_button("🔗 前往台鐵訂票系統", "https://www.railway.gov.tw/")
 
-# 登入頁面 (簡約風)
+# ==========================================
+# Layer 0: 原始登入頁面 (Original)
+# ==========================================
 def login_page():
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        st.markdown("<h2 style='text-align: center; color:#333;'>🔐 會員驗證</h2>", unsafe_allow_html=True)
-        st.info("請輸入協會通行碼 (1234)")
-        pwd = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="請輸入密碼")
-        if st.button("登入系統", type="primary"):
-            if pwd == "1234":
-                st.session_state['logged_in'] = True
-                st.rerun()
-            else: 
-                st.error("密碼錯誤，請重新輸入")
+    st.container(height=50, border=False)
+    st.markdown("<h2 style='text-align: center;'>🔒 協會會員驗證</h2>", unsafe_allow_html=True)
+    st.info("會員請向三一協會索取密碼")
+    pwd = st.text_input("密碼", type="password", label_visibility="collapsed")
+    if st.button("登入", type="primary"):
+        if pwd == "1234":
+            st.session_state['logged_in'] = True
+            st.rerun()
+        else: st.error("密碼錯誤")
 
 if __name__ == "__main__":
     if not st.session_state['logged_in']: login_page()
