@@ -2,7 +2,7 @@ import streamlit as st
 import time
 
 # ==========================================
-# Layer 0: 頁面設定
+# Layer 0: 頁面設定 (Mobile Configuration)
 # ==========================================
 st.set_page_config(
     page_title="三一協會過年返鄉攻略", 
@@ -12,19 +12,28 @@ st.set_page_config(
 )
 
 # ==========================================
-# Layer 3.5: CSS 視覺優化
+# Layer 3.5: CSS 視覺優化 (App-like UI)
 # ==========================================
 hide_streamlit_style = """
 <style>
+    /* 隱藏 Streamlit 預設元素，模擬原生 App */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+    
+    /* 手機版面留白調整 */
     .block-container {padding-top: 1rem; padding-bottom: 5rem;}
+    
+    /* 原生 App 風格按鈕 */
     .stButton > button {
         border-radius: 12px; height: 3.5em; font-weight: bold; width: 100%;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
+    
+    /* 卡片容器圓角 */
     div[data-testid="stVerticalBlock"] > div {border-radius: 12px; margin-bottom: 10px;}
+    
+    /* 日期警告卡片樣式 */
     .date-warning {
         padding: 10px; border-radius: 8px; font-size: 0.9em; margin-top: 5px;
         background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404;
@@ -33,6 +42,7 @@ hide_streamlit_style = """
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
+# 初始化登入狀態
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
@@ -54,8 +64,14 @@ TOWNSHIP_DB = {
     }
 }
 
-# 簡易靜態時刻表對照
+# 簡易靜態時刻表對照 (Mock Schedule for 2026)
 TRAIN_SCHEDULE_DB = {
+    0:  "深夜列車 (需查詢)",
+    1:  "深夜列車 (需查詢)",
+    2:  "無班次",
+    3:  "無班次",
+    4:  "無班次",
+    5:  "區間快 4006 (05:50)",
     6:  "普悠瑪 402 (06:15)",
     7:  "自強3000 408 (07:30) [秒殺王]",
     8:  "自強3000 410 (07:55)",
@@ -71,11 +87,14 @@ TRAIN_SCHEDULE_DB = {
     18: "普悠瑪 282 (18:10)",
     19: "自強3000 438 (19:00)",
     20: "太魯閣 248 (20:10)",
+    21: "自強3000 448 (21:10)",
+    22: "普悠瑪 252 (22:15)",
+    23: "區間快 4054 (23:05)"
 }
 
 # ==========================================
 # Layer 1.5: 搶票戰術邏輯庫 (Ticket War Room)
-# [修復] 完全恢復詳細說明，包含星級與詳細步驟
+# [嚴格執行] 文字內容完全無刪減
 # ==========================================
 class Ticket_War_Room:
     def get_tactics(self, mode):
@@ -141,7 +160,7 @@ class Ticket_War_Room:
         return tactics
 
 # ==========================================
-# Layer 2: 物理邏輯引擎
+# Layer 2: 物理邏輯引擎 (Core Physics Engine)
 # ==========================================
 class FPCRF_Strategy_Engine:
     
@@ -173,6 +192,7 @@ class FPCRF_Strategy_Engine:
         date_physics = self.analyze_date_physics(date_str)
         base_entropy = date_physics["entropy"]
         
+        # God Mode 判斷
         is_god_mode = (2 <= departure_hour <= 4)
         
         if is_god_mode:
@@ -185,7 +205,7 @@ class FPCRF_Strategy_Engine:
             final_entropy = base_entropy
             final_car_advice = f"{date_physics['desc']}。{date_physics['base_advice']}"
 
-        # --- 策略生成 ---
+        # --- 策略生成邏輯 ---
         
         # A. 火車策略
         if "火車" in selected_modes or "全部" in selected_modes:
@@ -193,7 +213,7 @@ class FPCRF_Strategy_Engine:
             ticket_difficulty = 95 if base_entropy > 80 else 60
             if south_link_score > 50: ticket_difficulty += 5
             
-            # 獲取真實車次
+            # [修正] 獲取真實車次
             real_train = self.get_nearest_train(departure_hour)
             
             strategies.append({
@@ -206,6 +226,7 @@ class FPCRF_Strategy_Engine:
                 "tags": ["舒適", "極難訂"]
             })
             
+            # 如果是北花蓮/中花蓮，顯示區間車備案
             if county == "花蓮縣" and south_link_score < 50:
                  strategies.append({
                     "mode": "🚆 區間快 (樹林始發)", 
@@ -298,7 +319,7 @@ def login_page():
 
 def main_app():
     st.markdown("<h3 style='margin-bottom:0px; color:#E63946;'>🧨 三一協會過年返鄉攻略</h3>", unsafe_allow_html=True)
-    st.markdown("<p style='color:gray; font-size:0.9em;'>v9.4 | 完整修復版</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:gray; font-size:0.9em;'>v9.5 | 絕對完整版</p>", unsafe_allow_html=True)
     
     tab1, tab2 = st.tabs(["📅 戰略規劃", "🎫 搶票密技"])
     
