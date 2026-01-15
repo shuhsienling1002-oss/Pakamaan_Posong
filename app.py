@@ -2,40 +2,41 @@ import streamlit as st
 import time
 
 # ==========================================
-# Layer 0: 頁面基礎設定 (Mobile Configuration)
+# Layer 0: 頁面基礎設定 (Page Configuration)
+# 設定網頁標題、圖示與手機版面優化
 # ==========================================
 st.set_page_config(
-    page_title="三一協會過年返鄉攻略",    # 瀏覽器標籤名稱
-    page_icon="🧨",                     # 圖示
+    page_title="三一協會過年返鄉攻略",
+    page_icon="🧨",
     layout="centered",                  # 手機版建議置中，閱讀體驗較佳
     initial_sidebar_state="collapsed"   # 預設收起側邊欄，讓手機畫面更乾淨
 )
 
-# 初始化 Session State (用來記憶登入狀態)
+# 初始化 Session State (用來記憶使用者是否已登入)
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
 # Layer 1 & 2: 物理邏輯運算核心 (Physics Engine)
-# 這部分包含所有交通方式的計算邏輯，完全保留
+# 包含所有交通方式的計算邏輯、痛苦指數與成功率推演
 # ==========================================
 class FPCRF_Strategy_Engine:
     """
-    FP-CRF v6.1 策略計算引擎
+    FP-CRF v6.3 策略計算引擎
     負責計算痛苦指數 (Pain Index) 與 成功率 (Survival Rate)
     """
     
     def calculate_strategies(self, date_type, departure_hour, focus, destination):
         strategies = []
         
-        # --- 基礎參數校準 (Calibration) ---
+        # --- 參數校準 (Calibration) ---
         # 判斷是否為尖峰時刻 (除夕/初一)
         is_peak = (date_type == "春節連假首日/除夕")
         
         # 獲取該時段的交通熵值 (Traffic Entropy)
         traffic_entropy = self._get_traffic_entropy(departure_hour) if is_peak else 20
         
-        # 判斷目的地是否為台東 (台東的物理距離與策略不同)
+        # 判斷目的地 (台東的物理距離與策略不同)
         is_taitung = (destination == "台東") 
 
         # ----------------------------------------
@@ -110,7 +111,6 @@ class FPCRF_Strategy_Engine:
         # ----------------------------------------
         # 策略 6: 自行開車 (Driving)
         # ----------------------------------------
-        # 計算塞車加權時間
         base_time = 3.5 if not is_taitung else 6.0
         jam_factor = 1 + (traffic_entropy / 100) * 3 # 塞車係數
         drive_time = base_time * jam_factor
@@ -157,25 +157,24 @@ class FPCRF_Strategy_Engine:
         elif focus == "低痛苦 (舒適度)":
             strategies.sort(key=lambda x: x['pain_index'])
         else:
-            # 簡單處理字串排序
             strategies.sort(key=lambda x: float(x['time_cost'].split('hr')[0].split('-')[0]))
 
         return strategies
 
     def _get_traffic_entropy(self, hour):
-        """依據 2026 春節數據庫模擬塞車熵值"""
-        if 2 <= hour <= 4: return 5   # 暢通
+        """依據春節數據庫模擬塞車熵值"""
+        if 2 <= hour <= 4: return 5   # 暢通 (God Mode)
         if 5 <= hour <= 6: return 30  # 升溫
-        if 7 <= hour <= 19: return 95 # 塞爆
+        if 7 <= hour <= 19: return 95 # 塞爆 (Red Zone)
         if 20 <= hour <= 23: return 40 # 緩解
         return 10 # 深夜
 
     def _get_driving_advice(self, hour, is_peak):
         """生成駕駛建議文字"""
-        if not is_peak: return "路況正常，可放心行駛。"
-        if 2 <= hour <= 4: return "🌟 完美物理窗口。這是全天唯一的倖存區間。"
-        elif 7 <= hour <= 19: return "💀 絕對死局。建議改走台2線或放棄開車。"
-        else: return "⚠️ 緩衝區。要有塞車 2 小時以上的心理準備。"
+        if not is_peak: return "路況正常。"
+        if 2 <= hour <= 4: return "🌟 完美物理窗口。全天唯一的倖存區間。"
+        elif 7 <= hour <= 19: return "💀 絕對死局。建議改走台2線。"
+        else: return "⚠️ 緩衝區。心理準備塞2小時以上。"
 
 # ==========================================
 # Layer 3: 手機版使用者介面 (Mobile UI)
@@ -186,7 +185,7 @@ def login_page():
     st.markdown("<br><br>", unsafe_allow_html=True) # 手機版面留白
     
     st.title("🔒 三一協會會員驗證")
-    st.info("請輸入協會索取的密碼以解鎖攻略")
+    st.info("請輸入協會索取的密碼")
     
     # 密碼輸入框
     password = st.text_input("密碼", type="password")
@@ -205,14 +204,13 @@ def main_app():
     """主應用程式畫面"""
     # 標題區
     st.title("🧨 三一協會過年返鄉攻略")
-    st.caption("FP-CRF v6.1 | 2026 春節戰略版")
+    st.caption("FP-CRF v6.3 | 2026 春節戰略版")
     st.markdown("---")
     
     # --- 側邊欄設定 (手機版會收合在漢堡選單內) ---
     with st.sidebar:
         st.header("⚙️ 參數設定")
         
-        # 輸入控制項
         destination = st.selectbox("目的地", ["花蓮", "台東"])
         date_type = st.selectbox("日期類型", ["春節連假首日/除夕", "春節收假", "一般週末"])
         departure_hour = st.slider("預計出發時間 (24h)", 0, 23, 8)
@@ -228,8 +226,7 @@ def main_app():
             st.rerun()
 
     # --- 主操作區 ---
-    # 醒目的執行按鈕
-    if st.button("🚀 開始計算最佳攻略", type="primary", use_container_width=True):
+    if st.button("🚀 開始計算攻略", type="primary", use_container_width=True):
         
         # 呼叫邏輯引擎
         engine = FPCRF_Strategy_Engine()
@@ -239,48 +236,45 @@ def main_app():
         st.markdown("### 📊 攻略報告")
         st.caption(f"路線: 桃園 ➔ {destination} | 時間: {departure_hour:02d}:00")
         
-        # 迭代顯示每一個策略卡片
+        # --- 迭代顯示每一個策略卡片 ---
         for i, s in enumerate(strategies):
             pain = s['pain_index']
             
-            # 決定卡片樣式 (Error=紅, Warning=黃, Success=綠)
-            if pain > 80:
-                container = st.error
-                icon = "🔥"
-            elif pain < 30:
-                container = st.success
-                icon = "✨"
-            else:
-                container = st.warning
-                icon = "⚠️"
-            
-            # 繪製卡片
-            with container():
-                # 1. 策略名稱 (加粗)
+            # [Fix]: 使用 st.container(border=True) 替代舊版 st.error()，解決 TypeError
+            with st.container(border=True):
+                
+                # 1. 策略名稱
                 st.markdown(f"**{i+1}. {s['mode']}**")
                 
-                # 若是第一名，顯示推薦標章
-                if i == 0:
-                    st.caption(f"🏆 {icon} 協會推薦最佳路徑")
+                # 2. 狀態燈號 (使用 columns 排列)
+                col_state, col_info = st.columns([1.5, 3.5])
                 
-                # 2. 詳細路徑
+                with col_state:
+                    if pain > 80:
+                        st.error("🔥 痛苦")
+                    elif pain < 30:
+                        st.success("✨ 舒適")
+                    else:
+                        st.warning("⚠️ 普通")
+                
+                with col_info:
+                    if i == 0:
+                        st.caption("🏆 協會推薦最佳路徑")
+                    else:
+                        st.caption(f"存活率: {s['success_rate']}%")
+
+                # 3. 詳細資訊
                 st.markdown(f"📍 {s['details']}")
-                
-                # 3. 核心建議 (斜體強調)
                 st.markdown(f"_{s['advice']}_")
                 
-                # 4. 數據指標 (手機版適合用 columns 顯示關鍵字)
+                # 4. 數據指標
                 st.markdown("---")
                 c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.metric("機率", f"{s['success_rate']}%")
-                with c2:
-                    st.metric("痛苦", f"{s['pain_index']}")
-                with c3:
-                    # 簡單處理時間顯示
-                    st.metric("耗時", s['time_cost'].split('hr')[0])
+                c1.metric("機率", f"{s['success_rate']}%")
+                c2.metric("痛苦", f"{s['pain_index']}")
+                c3.metric("耗時", s['time_cost'].split('hr')[0])
                 
-                # 5. 底部標籤
+                # 5. 標籤
                 tags_str = " ".join([f"`#{t}`" for t in s['tags']])
                 st.markdown(tags_str)
 
