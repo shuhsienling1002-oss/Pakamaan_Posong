@@ -2,240 +2,304 @@ import streamlit as st
 import time
 
 # ==========================================
-# Layer 0: 頁面設定與 Session 狀態初始化
+# Layer 0: 頁面基礎設定 (Mobile Configuration)
 # ==========================================
 st.set_page_config(
-    page_title="FP-CRF 花東戰略指揮部",
-    page_icon="🧬",
-    layout="centered"
+    page_title="三一協會過年返鄉攻略",    # 瀏覽器標籤名稱
+    page_icon="🧨",                     # 圖示
+    layout="centered",                  # 手機版建議置中，閱讀體驗較佳
+    initial_sidebar_state="collapsed"   # 預設收起側邊欄，讓手機畫面更乾淨
 )
 
-# 初始化 Session State (用來記住是否有登入)
+# 初始化 Session State (用來記憶登入狀態)
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# Layer 1 & 2: 物理邏輯核心 (Physics Engine)
-# 這裡包含所有運算邏輯，與介面無關
+# Layer 1 & 2: 物理邏輯運算核心 (Physics Engine)
+# 這部分包含所有交通方式的計算邏輯，完全保留
 # ==========================================
 class FPCRF_Strategy_Engine:
+    """
+    FP-CRF v6.1 策略計算引擎
+    負責計算痛苦指數 (Pain Index) 與 成功率 (Survival Rate)
+    """
+    
     def calculate_strategies(self, date_type, departure_hour, focus, destination):
         strategies = []
         
-        # 參數校準
+        # --- 基礎參數校準 (Calibration) ---
+        # 判斷是否為尖峰時刻 (除夕/初一)
         is_peak = (date_type == "春節連假首日/除夕")
+        
+        # 獲取該時段的交通熵值 (Traffic Entropy)
         traffic_entropy = self._get_traffic_entropy(departure_hour) if is_peak else 20
+        
+        # 判斷目的地是否為台東 (台東的物理距離與策略不同)
         is_taitung = (destination == "台東") 
 
-        # --- 策略 1: 火車直達 (Standard) ---
+        # ----------------------------------------
+        # 策略 1: 火車直達 (Standard Train)
+        # ----------------------------------------
         success_rate_train = 10 if is_peak else 60
         strategies.append({
-            "mode": "🚄 火車直達 (EMU3000/普悠瑪)",
-            "details": f"桃園 -> {destination}",
-            "time_cost": "2.5 - 3.5 hr" if not is_taitung else "4.0 - 5.0 hr",
-            "pain_index": 20,
+            "mode": "🚄 火車直達 (EMU3000)",
+            "details": f"桃園 ➔ {destination}",
+            "time_cost": "2.5-3.5hr" if not is_taitung else "4.0-5.0hr",
+            "pain_index": 20,  # 舒適度高
             "success_rate": success_rate_train,
-            "advice": "最優解，但若是除夕，搶票難度等同中樂透。",
+            "advice": "除夕搶票難度極高，建議多開視窗。若搶到騰雲座艙則是王者。",
             "tags": ["舒適", "極難訂"]
         })
 
-        # --- 策略 2: 區間快暴力解 (Hardcore) ---
+        # ----------------------------------------
+        # 策略 2: 區間快暴力解 (Local Express)
+        # ----------------------------------------
         strategies.append({
-            "mode": "🚆 區間快車 (EMU900) 暴力接力",
-            "details": f"桃園 -> 樹林(始發) -> {destination}",
-            "time_cost": "4.0 hr" if not is_taitung else "6.5 hr",
-            "pain_index": 65 if not is_taitung else 85,
-            "success_rate": 99,
-            "advice": "回到樹林/南港搶始發站座位。去花蓮可接受，去台東屁股會裂開 (Pain > 80)。",
+            "mode": "🚆 區間快車 (始發站戰術)",
+            "details": f"桃園 ➔ 樹林/南港(始發) ➔ {destination}",
+            "time_cost": "4.0hr" if not is_taitung else "6.5hr",
+            "pain_index": 65 if not is_taitung else 85, # 台東搭區間車非常痛苦
+            "success_rate": 99, # 只要擠得上去
+            "advice": "千萬不要在桃園等車！務必回頭去搭始發車，才有位子坐。",
             "tags": ["保證有車", "累"]
         })
 
-        # --- 策略 3: 高鐵轉乘 (HSR Relay) ---
+        # ----------------------------------------
+        # 策略 3: 高鐵轉乘 (HSR Relay)
+        # ----------------------------------------
         strategies.append({
-            "mode": "🚅+🚄 高鐵轉乘 (HSR Relay)",
-            "details": f"桃園HSR -> 台北車站 -> 轉乘東部幹線",
-            "time_cost": "3.0 hr" if not is_taitung else "4.5 hr",
+            "mode": "🚅+🚄 高鐵轉乘戰術",
+            "details": f"桃園HSR ➔ 台北車站 ➔ 東部幹線",
+            "time_cost": "3.0hr" if not is_taitung else "4.5hr",
             "pain_index": 30,
-            "success_rate": success_rate_train + 5,
-            "advice": "利用高鐵跳過桃園-台北的台鐵擁擠段。關鍵還是在搶台北出發的東部票。",
+            "success_rate": success_rate_train + 5, # 避開一段風險
+            "advice": "用高鐵跳過國道塞車段，準時抵達台北轉乘，風險減半。",
             "tags": ["效率", "轉乘"]
         })
 
-        # --- 策略 4: 飛機空運 (Sky Vector) ---
+        # ----------------------------------------
+        # 策略 4: 飛機空運 (Air Vector)
+        # ----------------------------------------
         flight_success = 5 if is_peak else 40
         strategies.append({
-            "mode": "✈️ 飛機空運 (Sky Vector)",
-            "details": f"機捷 -> 松山機場(TSA) -> {destination}機場",
-            "time_cost": "2.5 hr (含報到)",
+            "mode": "✈️ 飛機空運 (候補)",
+            "details": f"松山(TSA) ➔ {destination}",
+            "time_cost": "2.5hr",
             "pain_index": 15,
             "success_rate": flight_success,
-            "advice": "立榮/華信春節加班機極少。除非你是「設籍居民」有保留位，否則現場候補是絕望的賭局。",
+            "advice": "除非是設籍居民，否則現場候補是大賭局，不建議作為主要方案。",
             "tags": ["豪賭", "看天吃飯"]
         })
 
-        # --- 策略 5: 南迴大迂迴 (台東限定神招) ---
+        # ----------------------------------------
+        # 策略 5: 南迴大迂迴 (Encirclement)
+        # *僅限台東*
+        # ----------------------------------------
         if is_taitung:
             strategies.append({
-                "mode": "🔄 高鐵南下 + 南迴北上 (大迂迴)",
-                "details": "桃園HSR -> 左營 -> (新自強/租車) -> 台東",
-                "time_cost": "4.5 - 5.5 hr",
-                "pain_index": 25,
+                "mode": "🔄 高鐵南迴大迂迴",
+                "details": "桃園HSR ➔ 左營 ➔ 台東",
+                "time_cost": "4.5-5.5hr",
+                "pain_index": 25, # 雖然久但很舒服
                 "success_rate": 75,
-                "advice": "✨ 台東返鄉首選！避開蘇花改瓶頸。左營到台東票比台北到台東好買太多了。",
-                "tags": ["逆向思維", "高成功率"]
+                "advice": "台東人返鄉首選！完全避開蘇花改瓶頸，票源充裕。",
+                "tags": ["逆向思維", "神招"]
             })
         
-        # --- 策略 6: 自行開車 (Driving) ---
-        drive_time = (3.5 if not is_taitung else 6.0) * (1 + (traffic_entropy / 100) * 3)
+        # ----------------------------------------
+        # 策略 6: 自行開車 (Driving)
+        # ----------------------------------------
+        # 計算塞車加權時間
+        base_time = 3.5 if not is_taitung else 6.0
+        jam_factor = 1 + (traffic_entropy / 100) * 3 # 塞車係數
+        drive_time = base_time * jam_factor
+        
         strategies.append({
-            "mode": "🚗 自行開車 (蘇花路廊)",
+            "mode": "🚗 自行開車 (蘇花改)",
             "details": f"出發時間 {departure_hour}:00",
-            "time_cost": f"{drive_time:.1f} hr",
+            "time_cost": f"{drive_time:.1f}hr",
             "pain_index": min(30 + traffic_entropy, 100),
             "success_rate": 100,
             "advice": self._get_driving_advice(departure_hour, is_peak),
-            "tags": ["自主性", "塞車地獄"]
+            "tags": ["自主", "塞車地獄"]
         })
 
-        # --- 策略 7: 鐵公路聯運 (Bus Hybrid) ---
+        # ----------------------------------------
+        # 策略 7: 鐵公路聯運 (Bus Hybrid)
+        # ----------------------------------------
         strategies.append({
-            "mode": "🚌+🚆 鐵公路聯運 (Gap Seeker)",
-            "details": "桃園 -> 台北轉運站 -> 客運至羅東 -> 火車",
-            "time_cost": "4.5 hr",
+            "mode": "🚌+🚆 鐵公路聯運",
+            "details": "台北轉運站 ➔ 羅東 ➔ 火車",
+            "time_cost": "4.5hr",
             "pain_index": 50,
             "success_rate": 85,
-            "advice": "利用國5大客車專用道優勢。適合買不到火車票的中繼手段。",
+            "advice": "國5有大客車專用道。這是買不到直達火車票時的最佳中繼解。",
             "tags": ["高彈性"]
         })
 
-        # --- 策略 8: 金錢換空間 (Money Solve) ---
+        # ----------------------------------------
+        # 策略 8: 鈔能力 (Money Solve)
+        # ----------------------------------------
         strategies.append({
-            "mode": "💸 包車/白牌/共乘 (Money Solve)",
-            "details": "到府接送 -> 花東",
+            "mode": "💸 包車/白牌 (鈔能力)",
+            "details": "到府接送 ➔ 花東",
             "time_cost": "同開車",
-            "pain_index": 10,
+            "pain_index": 10, # 睡覺就好
             "success_rate": 90,
-            "advice": "春節加價幅度約 1.5x - 2x。優點是你可以在車上睡覺，讓司機去承擔塞車的痛苦。",
-            "tags": ["鈔能力", "輕鬆"]
+            "advice": "春節加價約1.5倍。你在車上睡覺，讓司機去承擔塞車的痛苦。",
+            "tags": ["輕鬆", "貴"]
         })
 
-        # 根據用戶選擇進行排序
+        # --- 排序邏輯 ---
         if focus == "成功率 (只要回得去)":
             strategies.sort(key=lambda x: x['success_rate'], reverse=True)
         elif focus == "低痛苦 (舒適度)":
             strategies.sort(key=lambda x: x['pain_index'])
         else:
-            # 簡單解析時間字串進行排序
-            strategies.sort(key=lambda x: float(x['time_cost'].split()[0].split('-')[0]))
+            # 簡單處理字串排序
+            strategies.sort(key=lambda x: float(x['time_cost'].split('hr')[0].split('-')[0]))
 
         return strategies
 
     def _get_traffic_entropy(self, hour):
-        # 塞車熵值模型 (Layer 1 Physics)
-        if 2 <= hour <= 4: return 5
-        if 5 <= hour <= 6: return 30
-        if 7 <= hour <= 19: return 95
-        if 20 <= hour <= 23: return 40
-        return 10
+        """依據 2026 春節數據庫模擬塞車熵值"""
+        if 2 <= hour <= 4: return 5   # 暢通
+        if 5 <= hour <= 6: return 30  # 升溫
+        if 7 <= hour <= 19: return 95 # 塞爆
+        if 20 <= hour <= 23: return 40 # 緩解
+        return 10 # 深夜
 
     def _get_driving_advice(self, hour, is_peak):
-        if not is_peak: return "路況正常。"
-        if 2 <= hour <= 4: return "🌟 完美物理窗口。這是唯一的倖存區間。"
+        """生成駕駛建議文字"""
+        if not is_peak: return "路況正常，可放心行駛。"
+        if 2 <= hour <= 4: return "🌟 完美物理窗口。這是全天唯一的倖存區間。"
         elif 7 <= hour <= 19: return "💀 絕對死局。建議改走台2線或放棄開車。"
-        else: return "⚠️ 緩衝區。要有塞 2 小時以上的心理準備。"
+        else: return "⚠️ 緩衝區。要有塞車 2 小時以上的心理準備。"
 
 # ==========================================
-# Layer 3: Streamlit 使用者介面 (UI)
-# 這裡負責顯示畫面，包含登入頁與主程式
+# Layer 3: 手機版使用者介面 (Mobile UI)
 # ==========================================
 
 def login_page():
-    st.markdown("<br><br>", unsafe_allow_html=True) # 排版留白
-    col1, col2, col3 = st.columns([1, 2, 1])
+    """顯示登入畫面"""
+    st.markdown("<br><br>", unsafe_allow_html=True) # 手機版面留白
     
-    with col2:
-        st.title("🔒 協會會員驗證")
-        st.markdown("### ⚠️ 系統存取受限")
-        st.info("會員請向協會索取密碼")
-        
-        password = st.text_input("請輸入密碼", type="password")
-        
-        if st.button("驗證身份 (Verify)", type="primary"):
-            if password == "1234":
-                st.session_state['logged_in'] = True
-                st.success("✅ 身份確認。正在進入 FP-CRF 指揮部...")
-                time.sleep(1)
-                st.rerun() # 重新整理頁面以進入主程式
-            else:
-                st.error("❌ 密碼錯誤。物理法則拒絕您的存取。")
+    st.title("🔒 三一協會會員驗證")
+    st.info("請輸入協會索取的密碼以解鎖攻略")
+    
+    # 密碼輸入框
+    password = st.text_input("密碼", type="password")
+    
+    # 全寬按鈕 (方便手指點擊)
+    if st.button("登入系統", type="primary", use_container_width=True):
+        if password == "1234":
+            st.session_state['logged_in'] = True
+            st.success("✅ 驗證成功！")
+            time.sleep(0.5)
+            st.rerun() # 重新整理頁面
+        else:
+            st.error("❌ 密碼錯誤，請重試。")
 
 def main_app():
-    # 側邊欄設定
+    """主應用程式畫面"""
+    # 標題區
+    st.title("🧨 三一協會過年返鄉攻略")
+    st.caption("FP-CRF v6.1 | 2026 春節戰略版")
+    st.markdown("---")
+    
+    # --- 側邊欄設定 (手機版會收合在漢堡選單內) ---
     with st.sidebar:
-        st.header("Layer 0: 參數校準")
+        st.header("⚙️ 參數設定")
         
+        # 輸入控制項
         destination = st.selectbox("目的地", ["花蓮", "台東"])
-        date_type = st.selectbox("時段類型", ["春節連假首日/除夕", "春節收假", "一般週末"])
+        date_type = st.selectbox("日期類型", ["春節連假首日/除夕", "春節收假", "一般週末"])
+        departure_hour = st.slider("預計出發時間 (24h)", 0, 23, 8)
         
-        departure_hour = st.slider("預計出發時間 (0-23時)", 0, 23, 8)
-        st.write(f"🕒 設定時間: {departure_hour:02d}:00")
+        st.write(f"🕒 目前設定: {departure_hour:02d}:00 出發")
         
-        focus = st.selectbox("核心需求", ["成功率 (只要回得去)", "低痛苦 (舒適度)", "速度 (極致效率)"])
+        focus = st.selectbox("您的優先考量", ["成功率 (只要回得去)", "低痛苦 (舒適度)", "速度 (極致效率)"])
         
-        st.divider()
-        if st.button("登出系統"):
+        st.markdown("---")
+        # 登出按鈕
+        if st.button("登出系統", use_container_width=True):
             st.session_state['logged_in'] = False
             st.rerun()
 
-    # 主畫面
-    st.title("🧬 FP-CRF v6.1 (Cloud)")
-    st.markdown(f"**花東返鄉戰略指揮部 | 物理推演系統**")
-    st.caption("v6.1 Platinum Edition - Contains HSR, Air, Charter, and Encirclement modules.")
-    
-    # 執行運算按鈕
-    run_btn = st.button("🚀 執行物理推演 (Execute Simulation)", type="primary", use_container_width=True)
-
-    if run_btn:
-        with st.spinner('正在計算路徑熵值與物理極限...'):
-            time.sleep(0.5) # 模擬運算感
-            engine = FPCRF_Strategy_Engine()
-            strategies = engine.calculate_strategies(date_type, departure_hour, focus, destination)
+    # --- 主操作區 ---
+    # 醒目的執行按鈕
+    if st.button("🚀 開始計算最佳攻略", type="primary", use_container_width=True):
+        
+        # 呼叫邏輯引擎
+        engine = FPCRF_Strategy_Engine()
+        strategies = engine.calculate_strategies(date_type, departure_hour, focus, destination)
+        
+        # 顯示結果標題
+        st.markdown("### 📊 攻略報告")
+        st.caption(f"路線: 桃園 ➔ {destination} | 時間: {departure_hour:02d}:00")
+        
+        # 迭代顯示每一個策略卡片
+        for i, s in enumerate(strategies):
+            pain = s['pain_index']
             
-            st.subheader(f"📊 戰略報告: 桃園 ➔ {destination}")
-            st.caption(f"情境: {date_type} | 出發: {departure_hour:02d}:00 | 導向: {focus}")
-            st.divider()
-
-            for i, s in enumerate(strategies):
-                # 視覺化邏輯：根據痛苦指數給予不同顏色的框框
-                pain = s['pain_index']
-                if pain > 80:
-                    container = st.error # 紅色 (高痛苦)
-                elif pain < 30:
-                    container = st.success # 綠色 (舒適)
-                else:
-                    container = st.warning # 黃色 (普通)
+            # 決定卡片樣式 (Error=紅, Warning=黃, Success=綠)
+            if pain > 80:
+                container = st.error
+                icon = "🔥"
+            elif pain < 30:
+                container = st.success
+                icon = "✨"
+            else:
+                container = st.warning
+                icon = "⚠️"
+            
+            # 繪製卡片
+            with container():
+                # 1. 策略名稱 (加粗)
+                st.markdown(f"**{i+1}. {s['mode']}**")
                 
-                with container():
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.markdown(f"### 方案 {i+1}: {s['mode']}")
-                        if i == 0:
-                            st.caption("🏆 系統推薦最佳解 (The Best Physics Path)")
-                        st.markdown(f"**📍 路徑:** {s['details']}")
-                        st.markdown(f"**💡 建議:** {s['advice']}")
-                        # 顯示標籤
-                        tags_html = " ".join([f"`{tag}`" for tag in s['tags']])
-                        st.markdown(f"🏷️ {tags_html}")
-                    
-                    with col2:
-                        st.metric("成功率", f"{s['success_rate']}%")
-                        st.metric("痛苦指數", f"{s['pain_index']}")
-                        st.caption(f"⏱️ {s['time_cost']}")
+                # 若是第一名，顯示推薦標章
+                if i == 0:
+                    st.caption(f"🏆 {icon} 協會推薦最佳路徑")
+                
+                # 2. 詳細路徑
+                st.markdown(f"📍 {s['details']}")
+                
+                # 3. 核心建議 (斜體強調)
+                st.markdown(f"_{s['advice']}_")
+                
+                # 4. 數據指標 (手機版適合用 columns 顯示關鍵字)
+                st.markdown("---")
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.metric("機率", f"{s['success_rate']}%")
+                with c2:
+                    st.metric("痛苦", f"{s['pain_index']}")
+                with c3:
+                    # 簡單處理時間顯示
+                    st.metric("耗時", s['time_cost'].split('hr')[0])
+                
+                # 5. 底部標籤
+                tags_str = " ".join([f"`#{t}`" for t in s['tags']])
+                st.markdown(tags_str)
+
+    else:
+        # 尚未點擊按鈕時的引導畫面
+        st.info("👆 請點擊上方按鈕開始分析")
+        st.markdown("""
+        **🔎 使用說明：**
+        1. 點擊左上角 **>** 圖示開啟選單。
+        2. 調整您的目的地與出發時間。
+        3. 點擊 **「開始計算」**。
+        4. 系統將依據 FP-CRF 物理模型為您排序。
+        """)
 
 # ==========================================
-# 程式進入點 (Main Entry Point)
+# 程式入口點 (Entry Point)
 # ==========================================
-if not st.session_state['logged_in']:
-    login_page()
-else:
-    main_app()
+if __name__ == "__main__":
+    if not st.session_state['logged_in']:
+        login_page()
+    else:
+        main_app()
