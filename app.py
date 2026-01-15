@@ -46,8 +46,11 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# Layer 1: 資料庫 (地理 + 結構化時刻表)
+# Layer 1: 資料庫 (地理 + 時刻表 + 車站)
 # ==========================================
+# [新增] 桃園地區車站列表
+TAOYUAN_STATIONS = ["桃園", "內壢", "中壢", "埔心", "楊梅", "富岡"]
+
 TOWNSHIP_DB = {
     "花蓮縣": {
         "北花蓮 (花蓮市/新城/吉安)": {"time_offset": 0, "south_link_score": 0, "bus_info": "市區公車/計程車", "transfer": "花蓮站"},
@@ -63,7 +66,6 @@ TOWNSHIP_DB = {
     }
 }
 
-# 2026 春節預估熱門班次
 TRAIN_LIST = [
     {"time": "05:50", "hour": 5, "name": "區間快 4006", "tag": "早鳥保底"},
     {"time": "06:15", "hour": 6, "name": "普悠瑪 402", "tag": "熱門"},
@@ -83,12 +85,11 @@ TRAIN_LIST = [
 ]
 
 # ==========================================
-# Layer 1.5: 搶票戰術邏輯庫 (Ticket War Room)
+# Layer 1.5: 搶票戰術庫
 # ==========================================
 class Ticket_War_Room:
     def get_tactics(self, mode):
         tactics = []
-        
         if mode == "火車":
             tactics.append({
                 "title": "⚔️ 戰術 A: 拓撲切割法 (Split Ticket)",
@@ -123,7 +124,6 @@ class Ticket_War_Room:
                 ],
                 "level": "⭐⭐⭐"
             })
-
         elif mode == "公車/客運":
             tactics.append({
                 "title": "🚌 戰術 A: 鐵公路聯運 (必殺技)",
@@ -145,7 +145,6 @@ class Ticket_War_Room:
                 ],
                 "level": "⭐⭐⭐"
             })
-
         elif mode == "開車":
             tactics.append({
                 "title": "🌙 戰術 A: 物理時窗 (God Mode)",
@@ -167,7 +166,6 @@ class Ticket_War_Room:
                 ],
                 "level": "⭐⭐⭐"
             })
-
         return tactics
 
 # ==========================================
@@ -188,11 +186,10 @@ class FPCRF_Strategy_Engine:
         return mapping.get(date_str, mapping["一般平日/週末"])
 
     def get_nearest_train(self, hour):
-        # 尋找最接近的車次
-        train_info = TRAIN_SCHEDULE_DB.get(hour, "自強3000 (一般班次)")
-        return train_info
+        return TRAIN_SCHEDULE_DB.get(hour, "自強3000 (一般班次)")
 
-    def calculate_strategies(self, date_str, departure_hour, county, township_key, selected_modes, specific_train_name=None):
+    # [更新] 接收 departure_station 參數
+    def calculate_strategies(self, date_str, departure_hour, county, township_key, selected_modes, specific_train_name=None, departure_station="桃園"):
         strategies = []
         
         geo_data = TOWNSHIP_DB[county][township_key]
@@ -204,7 +201,6 @@ class FPCRF_Strategy_Engine:
         date_physics = self.analyze_date_physics(date_str)
         base_entropy = date_physics["entropy"]
         
-        # God Mode 判斷
         is_god_mode = (2 <= departure_hour <= 4)
         
         if is_god_mode:
@@ -219,24 +215,25 @@ class FPCRF_Strategy_Engine:
 
         # --- 策略生成 ---
         
-        # A. 火車策略 (包含直達、高鐵轉乘、南迴)
+        # A. 火車策略 (Train)
         if "火車" in selected_modes or "全部" in selected_modes:
             train_time = 2.5 + (time_offset * 0.8) 
             ticket_difficulty = 95 if base_entropy > 80 else 60
             
-            # 1. 桃園直達 (或轉接駁)
+            # 使用具體車次 + 出發站
             display_name = specific_train_name if specific_train_name else "自強3000 (一般班次)"
+            
             strategies.append({
                 "mode": f"🚄 {display_name}", 
-                "details": f"桃園 ➔ {transfer_st} ➔ 轉搭 {bus_info}",
+                "details": f"{departure_station} ➔ {transfer_st} ➔ 轉 {bus_info}", # 使用選定的車站
                 "time_cost": f"{train_time + 1.0:.1f}hr (含轉乘)", 
                 "pain_index": 40, 
                 "success_rate": max(5, 100 - ticket_difficulty),
-                "advice": f"抵達{transfer_st}後，請轉搭 **{bus_info}** 前往{township_key.split(' ')[0]}。", 
+                "advice": f"從{departure_station}出發，抵達{transfer_st}後，請轉搭 **{bus_info}** 前往{township_key.split(' ')[0]}。", 
                 "tags": ["舒適", "轉乘"]
             })
 
-            # 2. 高鐵轉乘 (自動納入火車選項)
+            # 高鐵轉乘
             strategies.append({
                 "mode": "🚅+🚄 高鐵北迴轉乘", 
                 "details": "桃園HSR ➔ 台北 ➔ 東部幹線",
@@ -247,12 +244,12 @@ class FPCRF_Strategy_Engine:
                 "tags": ["效率", "進階"]
             })
 
-            # 3. 南迴大迂迴 (自動納入火車選項，若地點合適)
+            # 南迴大迂迴
             if south_link_score >= 50:
                 south_time = 1.5 + 2.5 + ((100 - south_link_score)/100)
                 strategies.append({
                     "mode": "🔄 高鐵南迴大迂迴",
-                    "details": f"桃園 ➔ 左營 ➔ {township_key.split(' ')[0]}",
+                    "details": f"桃園HSR ➔ 左營 ➔ {township_key.split(' ')[0]}",
                     "time_cost": f"{south_time:.1f}hr", 
                     "pain_index": 25, 
                     "success_rate": 80, 
@@ -324,18 +321,23 @@ def login_page():
 
 def main_app():
     st.markdown("<h3 style='margin-bottom:0px; color:#E63946;'>🧨 三一協會過年返鄉攻略</h3>", unsafe_allow_html=True)
-    st.markdown("<div class='origin-badge'>📍 桃園出發</div>", unsafe_allow_html=True)
-    st.markdown("<p style='color:gray; font-size:0.9em;'>v10.0 | 邏輯修正版</p>", unsafe_allow_html=True)
+    st.markdown("<div class='origin-badge'>📍 桃園全區出發</div>", unsafe_allow_html=True)
+    st.markdown("<p style='color:gray; font-size:0.9em;'>v10.1 | 桃園在地全線版</p>", unsafe_allow_html=True)
     
     tab1, tab2 = st.tabs(["📅 戰略規劃", "🎫 搶票/公車密技"])
     
     with tab1:
         with st.expander("⚙️ 設定行程 (已展開)", expanded=True):
             
-            # [修正] 移除「混合模式」選項，只保留基礎交通工具
             st.markdown("**1. 交通工具:**")
             mode_options = ["全部", "火車", "公車/客運", "開車", "飛機"]
             selected_modes = st.multiselect("Modes", mode_options, default=["全部"], label_visibility="collapsed")
+            
+            # [新增] 火車出發站選擇 (連動顯示)
+            departure_station = "桃園" # 預設
+            if "火車" in selected_modes or "全部" in selected_modes:
+                st.markdown("**1.5 火車出發站:**")
+                departure_station = st.selectbox("Train Station", TAOYUAN_STATIONS, label_visibility="collapsed")
             
             st.markdown("---")
             
@@ -352,21 +354,18 @@ def main_app():
             date_options = ["2/12 (四) - 假期前2天", "2/13 (五) - 假期前1天", "2/14 (六) - 假期第1天", "2/16 (一) - 除夕", "一般平日/週末"]
             date_str = st.selectbox("Date", date_options, index=1, label_visibility="collapsed")
             
-            # [邏輯] 判斷是否「只選火車」
             is_train_focus = ("火車" in selected_modes and len(selected_modes) == 1)
             
             c_time, c_preview = st.columns([1.5, 1])
             with c_time:
                 specific_train_name = None
                 if is_train_focus:
-                    # 顯示火車時刻表選單
                     train_options = [f"{t['time']} | {t['name']} {t['tag']}" for t in TRAIN_LIST]
                     selected_train_str = st.selectbox("Train", train_options, label_visibility="collapsed")
                     departure_hour = selected_train_str.split(":")[0]
                     specific_train_name = selected_train_str.split("|")[1].strip()
                     st.markdown("<span class='train-badge'>已連動時刻表</span>", unsafe_allow_html=True)
                 else:
-                    # 顯示一般時間選單
                     departure_hour_str = st.selectbox("Time", [f"{i:02d}:00" for i in range(24)], index=3, label_visibility="collapsed")
                     departure_hour = departure_hour_str.split(":")[0]
             
@@ -380,10 +379,10 @@ def main_app():
             engine = FPCRF_Strategy_Engine()
             hour_int = int(departure_hour)
             
-            strategies = engine.calculate_strategies(date_str, hour_int, county, township, modes, specific_train_name)
+            strategies = engine.calculate_strategies(date_str, hour_int, county, township, modes, specific_train_name, departure_station)
             
             st.markdown("---")
-            st.markdown(f"**📊 分析報告: 桃園 ➔ {township.split(' ')[0]}**")
+            st.markdown(f"**📊 分析報告: {departure_station} ➔ {township.split(' ')[0]}**")
             
             if not strategies: st.warning("⚠️ 請選擇至少一種交通工具。")
             for i, s in enumerate(strategies):
@@ -404,21 +403,21 @@ def main_app():
         st.markdown("#### 🎫 搶票與公車戰術 (Ticket War Room)")
         war_room = Ticket_War_Room()
         
-        st.markdown("##### 🚌 公車/客運戰術")
-        for t in war_room.get_tactics("公車/客運"):
-            with st.expander(t['title']):
+        st.markdown("##### 🚂 火車/台鐵戰術")
+        for t in war_room.get_tactics("火車"):
+            with st.expander(f"{t['title']} ({t['level']})"):
                 st.markdown(t['desc'])
                 for s in t['steps']: st.markdown(f"- {s}")
         
-        st.markdown("##### 🚂 火車戰術")
-        for t in war_room.get_tactics("火車"):
-            with st.expander(t['title']):
+        st.markdown("##### 🚌 公車/客運戰術")
+        for t in war_room.get_tactics("公車/客運"):
+            with st.expander(f"{t['title']} ({t['level']})"):
                 st.markdown(t['desc'])
                 for s in t['steps']: st.markdown(f"- {s}")
         
         st.markdown("##### 🚗 開車戰術")
         for t in war_room.get_tactics("開車"):
-            with st.expander(t['title']):
+            with st.expander(f"{t['title']} ({t['level']})"):
                 st.markdown(t['desc'])
                 for s in t['steps']: st.markdown(f"- {s}")
 
