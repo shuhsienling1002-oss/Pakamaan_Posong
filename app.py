@@ -46,9 +46,9 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 # ==========================================
-# Layer 1: 資料庫 (地理 + 時刻表 + 車站)
+# Layer 1: 資料庫
 # ==========================================
-# [新增] 桃園地區車站列表
+# 桃園地區車站列表
 TAOYUAN_STATIONS = ["桃園", "內壢", "中壢", "埔心", "楊梅", "富岡"]
 
 TOWNSHIP_DB = {
@@ -126,24 +126,14 @@ class Ticket_War_Room:
             })
         elif mode == "公車/客運":
             tactics.append({
-                "title": "🚌 戰術 A: 鐵公路聯運 (必殺技)",
-                "desc": "買不到火車票時的最強備案，利用國道5號的大客車專用道。",
+                "title": "🚌 戰術 A: 北花線客運轉乘",
+                "desc": "因為桃園無直達花蓮客運，必須前往台北/板橋轉乘。",
                 "steps": [
-                    "**第一段 (國道客運):** 桃園出發無法直接接駁，請先移動到「台北轉運站」。搭乘葛瑪蘭/首都客運前往羅東 (不塞車)。",
-                    "**第二段 (區間車):** 羅東轉運站就在火車站後站。轉搭區間車往花蓮 (班次極多)。",
-                    "**優勢:** 羅東是關鍵節點，避開雪隧塞車，後半段鐵路保證有位。"
+                    "**第一步:** 從桃園搭客運/火車前往 **「台北轉運站」** 或 **「板橋客運站」**。",
+                    "**第二步:** 轉搭 **統聯(1663)、首都(1580)、台北客運(1071)** 直達花蓮火車站。",
+                    "**優點:** 國5有大客車專用道，塞車時比開車快很多。"
                 ],
                 "level": "⭐⭐⭐⭐"
-            })
-            tactics.append({
-                "title": "📱 戰術 B: iBus App 查班次",
-                "desc": "花東公車班次極少，錯過一班可能要等1小時以上。",
-                "steps": [
-                    "**工具:** 下載「iBus_公路客運」App。",
-                    "**查詢:** 輸入路線代碼 (如 1140, 8101) 掌握即時動態。",
-                    "**心態:** 寧可早到10分鐘，不要賭公車會晚到。"
-                ],
-                "level": "⭐⭐⭐"
             })
         elif mode == "開車":
             tactics.append({
@@ -188,7 +178,6 @@ class FPCRF_Strategy_Engine:
     def get_nearest_train(self, hour):
         return TRAIN_SCHEDULE_DB.get(hour, "自強3000 (一般班次)")
 
-    # [更新] 接收 departure_station 參數
     def calculate_strategies(self, date_str, departure_hour, county, township_key, selected_modes, specific_train_name=None, departure_station="桃園"):
         strategies = []
         
@@ -220,12 +209,11 @@ class FPCRF_Strategy_Engine:
             train_time = 2.5 + (time_offset * 0.8) 
             ticket_difficulty = 95 if base_entropy > 80 else 60
             
-            # 使用具體車次 + 出發站
             display_name = specific_train_name if specific_train_name else "自強3000 (一般班次)"
             
             strategies.append({
                 "mode": f"🚄 {display_name}", 
-                "details": f"{departure_station} ➔ {transfer_st} ➔ 轉 {bus_info}", # 使用選定的車站
+                "details": f"{departure_station} ➔ {transfer_st} ➔ 轉 {bus_info}", 
                 "time_cost": f"{train_time + 1.0:.1f}hr (含轉乘)", 
                 "pain_index": 40, 
                 "success_rate": max(5, 100 - ticket_difficulty),
@@ -257,13 +245,24 @@ class FPCRF_Strategy_Engine:
                     "tags": ["神招", "避塞"]
                 })
 
-        # B. 公車/客運
+        # B. 公車/客運 (Bus) - 現實修正邏輯
         if "公車/客運" in selected_modes or "全部" in selected_modes:
+            # 1. 警告卡
             strategies.append({
-                "mode": "🚌 鐵公路聯運 (客運+火車)",
-                "details": "桃園➔台北轉運站➔羅東➔花蓮",
-                "time_cost": "4.5hr", "pain_index": 50, "success_rate": 85,
-                "advice": "買不到直達票的救星。國5客運有專用道。", "tags": ["必殺技"]
+                "mode": "❌ 桃園無直達花東客運",
+                "details": "請勿尋找直達車",
+                "time_cost": "N/A", "pain_index": 100, "success_rate": 0,
+                "advice": "桃園沒有直接開往花蓮/台東的客運班次，請使用下方轉乘方案。", 
+                "tags": ["警告"]
+            })
+            
+            # 2. 轉乘方案
+            strategies.append({
+                "mode": "🚌 替代方案: 台北轉乘 (回遊號)",
+                "details": "桃園 ➔ 台北/板橋 ➔ 花蓮",
+                "time_cost": "5.0hr (含轉乘)", "pain_index": 60, "success_rate": 90,
+                "advice": "先去台北轉運站搭「統聯1663」或「首都1580」。國5有客運專用道，比自己開車快。",
+                "tags": ["唯一解", "不塞車"]
             })
 
         # C. 開車
@@ -275,7 +274,7 @@ class FPCRF_Strategy_Engine:
             
             strategies.append({
                 "mode": "🚗 自行開車 (蘇花改)", 
-                "details": f"桃園 ➔ {township_key.split(' ')[0]}",
+                "details": f"{departure_station} ➔ {township_key.split(' ')[0]}",
                 "time_cost": f"{total_drive_time:.1f}hr",
                 "pain_index": min(100, drive_pain), "success_rate": 100,
                 "advice": final_car_advice, "tags": ["順暢" if is_god_mode else "塞車"]
@@ -283,7 +282,7 @@ class FPCRF_Strategy_Engine:
             
             strategies.append({
                 "mode": "💸 包車/白牌",
-                "details": "桃園到府接送",
+                "details": f"{departure_station}到府接送",
                 "time_cost": f"{total_drive_time:.1f}hr",
                 "pain_index": 10,
                 "success_rate": 90,
@@ -322,7 +321,7 @@ def login_page():
 def main_app():
     st.markdown("<h3 style='margin-bottom:0px; color:#E63946;'>🧨 三一協會過年返鄉攻略</h3>", unsafe_allow_html=True)
     st.markdown("<div class='origin-badge'>📍 桃園全區出發</div>", unsafe_allow_html=True)
-    st.markdown("<p style='color:gray; font-size:0.9em;'>v10.1 | 桃園在地全線版</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:gray; font-size:0.9em;'>v10.2 | 公車現實修正版</p>", unsafe_allow_html=True)
     
     tab1, tab2 = st.tabs(["📅 戰略規劃", "🎫 搶票/公車密技"])
     
@@ -333,8 +332,8 @@ def main_app():
             mode_options = ["全部", "火車", "公車/客運", "開車", "飛機"]
             selected_modes = st.multiselect("Modes", mode_options, default=["全部"], label_visibility="collapsed")
             
-            # [新增] 火車出發站選擇 (連動顯示)
-            departure_station = "桃園" # 預設
+            # 火車出發站
+            departure_station = "桃園"
             if "火車" in selected_modes or "全部" in selected_modes:
                 st.markdown("**1.5 火車出發站:**")
                 departure_station = st.selectbox("Train Station", TAOYUAN_STATIONS, label_visibility="collapsed")
