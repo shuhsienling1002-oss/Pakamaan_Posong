@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS 優化 (主要針對進入後的「主程式」優化手機體驗，不影響登入頁結構)
+# CSS 優化 (針對字體大小進行特化調整)
 st.markdown("""
 <style>
     /* 隱藏預設元素 */
@@ -22,14 +22,34 @@ st.markdown("""
     /* 容器調整 */
     .block-container {padding-top: 1.5rem; padding-bottom: 3rem;}
     
-    /* 按鈕美化 (全域) */
+    /* === 1. 分頁標籤 (Tabs) 字體放大 === */
+    button[data-baseweb="tab"] div p {
+        font-size: 1.3rem !important; /* 加大 Tab 字體 */
+        font-weight: 700 !important;
+    }
+    
+    /* === 2. 按鈕 (Button) 字體放大 === */
     .stButton > button {
         border-radius: 12px; 
-        height: 3.5em; 
+        height: 3.8em; 
         font-weight: bold; 
-        font-size: 1.1rem;
+        font-size: 1.3rem !important; /* 加大按鈕字體 */
         width: 100%;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    /* === 3. 輸入框與提示框 (Input & Alert) 字體放大 === */
+    .stTextInput input {
+        font-size: 1.2rem !important;
+    }
+    div[data-baseweb="notification"] div {
+        font-size: 1.1rem !important; /* 加大藍色提示框文字 */
+        font-weight: 600;
+    }
+    
+    /* === 4. 標題與其他元素 === */
+    h2 {
+        font-size: 2.2rem !important; /* 加大 H2 標題 */
     }
     
     /* 資訊卡片風格 */
@@ -39,6 +59,7 @@ st.markdown("""
         padding: 15px;
         border-radius: 8px;
         margin-bottom: 15px;
+        font-size: 1.1rem; /* 卡片內文也稍微加大 */
     }
 
     /* 標籤徽章 */
@@ -270,10 +291,11 @@ def main_app():
 # ==========================================
 def login_page():
     st.container(height=50, border=False)
-    st.markdown("<h2 style='text-align: center;'>🔒 協會會員驗證</h2>", unsafe_allow_html=True)
-    st.info("會員請向三一協會索取密碼")
+    # 這裡的標題也會受到 CSS 影響而變大
+    st.markdown("<h2 style='text-align: center;'>🔒 會員驗證</h2>", unsafe_allow_html=True)
+    st.info("請輸入協會通行碼 (1234)")
     pwd = st.text_input("密碼", type="password", label_visibility="collapsed")
-    if st.button("登入", type="primary"):
+    if st.button("登入系統", type="primary"):
         if pwd == "1234":
             st.session_state['logged_in'] = True
             st.rerun()
