@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import random
 
 # ==========================================
 # Layer 0: 頁面基礎設定
@@ -11,271 +12,287 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS 優化 (手機版面與大按鈕)
+# CSS 極致優化 (針對手機豎屏操作優化)
 st.markdown("""
 <style>
-    #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
-    .block-container {padding-top: 1rem; padding-bottom: 5rem;}
+    /* 隱藏預設元素 */
+    #MainMenu {visibility: hidden;} 
+    footer {visibility: hidden;} 
+    header {visibility: hidden;}
+    
+    /* 容器調整 */
+    .block-container {padding-top: 1.5rem; padding-bottom: 3rem;}
+    
+    /* 按鈕美化 */
     .stButton > button {
-        border-radius: 12px; height: 3.5em; font-weight: bold; width: 100%;
+        border-radius: 12px; 
+        height: 3.8em; 
+        font-weight: bold; 
+        font-size: 1.1rem;
+        width: 100%;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: all 0.2s;
     }
-    div[data-testid="stVerticalBlock"] > div {border-radius: 12px; margin-bottom: 10px;}
+    .stButton > button:active {
+        transform: scale(0.98);
+    }
+
+    /* 資訊卡片風格 */
+    .info-card {
+        background-color: #F8F9FA;
+        border-left: 5px solid #E63946;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    /* 標籤徽章 */
     .origin-badge {
-        background-color: #E9ECEF; color: #1F2937; padding: 6px 12px;
-        border-radius: 20px; font-weight: 900; font-size: 1.1em;
-        display: inline-block; margin-bottom: 10px; border: 2px solid #DEE2E6;
+        background-color: #E9ECEF; color: #1F2937; padding: 4px 12px;
+        border-radius: 16px; font-weight: 900; font-size: 0.9em;
+        display: inline-block; margin-bottom: 5px; border: 1px solid #CED4DA;
     }
-    .step-title {
-        font-size: 1.2em; font-weight: bold; color: #E63946; margin-top: 10px; margin-bottom: 5px;
-    }
+    
+    /* 強調字體 */
+    .highlight-red { color: #E63946; font-weight: bold; }
+    .highlight-green { color: #2A9D8F; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# 登入初始化
+# 登入狀態管理
 if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 
 # ==========================================
-# Layer 1: 核心資料庫 (地理/時段/時刻表)
+# Layer 1: 核心資料庫 (物理限制與數據)
 # ==========================================
 TOWNSHIP_DB = {
     "花蓮縣": ["花蓮市/吉安", "壽豐/鳳林", "光復/瑞穗", "玉里/富里 (南花蓮)", "豐濱 (海線)"],
     "台東縣": ["池上/關山 (縱谷)", "台東市/卑南", "成功/長濱 (海線)", "太麻里/大武 (南迴)"]
 }
 
-# 2026 春節參考時刻表 (以桃園站為基準，含抵達時間)
+# 2026 模擬時刻表 (針對熱門時段優化顯示)
 TRAIN_DATA = [
-    {"車次": "區間快 4006", "桃園開": "05:50", "花蓮到": "08:25", "備註": "早鳥保底"},
-    {"車次": "普悠瑪 402",   "桃園開": "06:15", "花蓮到": "08:20", "備註": "熱門"},
-    {"車次": "自強3000 408", "桃園開": "07:30", "花蓮到": "09:35", "備註": "👑 秒殺王"},
-    {"車次": "自強3000 410", "桃園開": "07:55", "花蓮到": "10:02", "備註": "熱門"},
-    {"車次": "普悠瑪 218",   "桃園開": "09:20", "花蓮到": "11:30", "備註": ""},
-    {"車次": "自強3000 472", "桃園開": "10:05", "花蓮到": "12:15", "備註": ""},
-    {"車次": "普悠瑪 222",   "桃園開": "11:20", "花蓮到": "13:25", "備註": ""},
-    {"車次": "自強3000 426", "桃園開": "12:30", "花蓮到": "14:35", "備註": "午餐車"},
-    {"車次": "太魯閣 228",   "桃園開": "13:10", "花蓮到": "15:15", "備註": ""},
-    {"車次": "自強3000 476", "桃園開": "14:10", "花蓮到": "16:20", "備註": ""},
-    {"車次": "自強3000 432", "桃園開": "16:00", "花蓮到": "18:05", "備註": "下午熱門"},
-    {"車次": "自強3000 434", "桃園開": "17:15", "花蓮到": "19:25", "備註": "下班首選"},
-    {"車次": "普悠瑪 282",   "桃園開": "18:10", "花蓮到": "20:15", "備註": "晚餐車"},
-    {"車次": "自強3000 438", "桃園開": "19:00", "花蓮到": "21:10", "備註": "晚班"},
-    {"車次": "太魯閣 248",   "桃園開": "20:10", "花蓮到": "22:20", "備註": "末班快車"},
+    {"類型": "區間快", "車次": "4006", "桃園開": "05:50", "花蓮到": "08:25", "特徵": "早鳥保底"},
+    {"類型": "普悠瑪", "車次": "402",   "桃園開": "06:15", "花蓮到": "08:20", "特徵": "熱門"},
+    {"類型": "自強3000", "車次": "408", "桃園開": "07:30", "花蓮到": "09:35", "特徵": "👑 秒殺王"},
+    {"類型": "自強3000", "車次": "426", "桃園開": "12:30", "花蓮到": "14:35", "特徵": "午餐車"},
+    {"類型": "自強3000", "車次": "434", "桃園開": "17:15", "花蓮到": "19:25", "特徵": "下班首選"},
+    {"類型": "普悠瑪", "車次": "282",   "桃園開": "18:10", "花蓮到": "20:15", "特徵": "晚餐車"},
+    {"類型": "太魯閣", "車次": "248",   "桃園開": "20:10", "花蓮到": "22:20", "特徵": "末班快車"},
 ]
 
 # ==========================================
-# Layer 2: 戰略邏輯引擎
+# Layer 2: 戰略邏輯引擎 (含高承載與安全閥)
 # ==========================================
 class StrategyEngine:
     
     def get_driving_advice(self, date_str, hour):
-        """邏輯 1: 如果開車，怎麼開最快"""
+        """邏輯 1: 開車策略 (加入高承載管制判定)"""
+        # 假設 2026 春節高承載為 2/14-15 的 05:00-12:00
+        is_hov_time = ("2/14" in date_str or "2/15" in date_str) and (5 <= hour < 12)
         is_jam_day = "2/13" in date_str or "2/14" in date_str or "2/15" in date_str
         
-        if 3 <= hour <= 5:
-            return "🟢 **[God Mode]** 這是唯一的「物理倖存時段」。國5全線暢通，現在出發最快。", 1.0, "暢通"
-        elif 6 <= hour <= 15 and is_jam_day:
-            return "🔴 **[自殺行為]** 現在是停車場時段。建議等到晚上20:00後再出發，或改走台2線濱海公路。", 2.5, "塞爆"
-        elif 16 <= hour <= 20 and is_jam_day:
-            return "🟠 **[痛苦緩解]** 車流開始消化，但仍會塞。建議再忍2小時，22:00後出發。", 1.5, "車多"
+        advice = {}
+        
+        # 1. 高承載檢查 (物理硬限制)
+        if is_hov_time:
+            advice['hov_warning'] = "⛔ **觸發高承載管制 (05-12)**：車上未滿 3 人將無法上國道5號！"
         else:
-            return "⚪ **[一般路況]** 車流正常，隨時可出發。", 1.1, "正常"
+            advice['hov_warning'] = None
 
-    def check_connection_safety(self, hour, county):
-        """邏輯 2-1: 轉乘安全閥 (檢查是否會斷頭)"""
-        # 計算：現在出發 + 桃園去台北(1hr) + 轉運等待(0.5hr) + 國道客運去羅東(1.5hr) + 緩衝(0.5hr) = 3.5小時
+        # 2. 路況判定
+        if 2 <= hour <= 5:
+            advice['status'] = "🟢 God Mode (神之領域)"
+            advice['desc'] = "這是唯一的「物理倖存時段」。全線暢通，現在出發你是贏家。"
+            advice['jam_factor'] = 1.0
+            advice['score'] = 100
+        elif 6 <= hour <= 15 and is_jam_day:
+            advice['status'] = "🔴 Suicide Run (停車場模式)"
+            advice['desc'] = "國5現在是大型停車場。建議等到晚上 22:00 後再出發，或改走台2線濱海(雖遠但會動)。"
+            advice['jam_factor'] = 2.8
+            advice['score'] = 20
+        elif 16 <= hour <= 21 and is_jam_day:
+            advice['status'] = "🟠 Struggle (痛苦緩解中)"
+            advice['desc'] = "車流開始緩慢移動，但仍需排隊進雪隧。建議先吃晚餐，忍到 22:00 後。"
+            advice['jam_factor'] = 1.8
+            advice['score'] = 50
+        else:
+            advice['status'] = "⚪ Normal (一般路況)"
+            advice['desc'] = "車流正常，注意車距即可。"
+            advice['jam_factor'] = 1.1
+            advice['score'] = 90
+            
+        return advice
+
+    def get_transfer_strategy(self, township, hour, county):
+        """邏輯 2: 沒票救援 (含轉乘風險計算)"""
+        # 羅東轉運站末班車死線
+        deadlines = {"花蓮縣": 22, "台東縣": 19} 
+        deadline = deadlines.get(county, 21)
+        
+        # 估算抵達羅東的時間 (出發+3.5hr)
         arrival_luodong = hour + 3.5
-        
-        # 羅東往花蓮末班車約 22:30
-        # 羅東往台東末班車約 19:30 (因為還要開很久)
-        
-        if county == "台東縣":
-            if arrival_luodong > 19.5: # 16:00 出發 -> 19:30 到羅東 (危險)
-                return False, "⚠️ **太晚了！** 您抵達羅東時，往台東的火車可能已收班。請務必在 **16:00 前** 出發。"
-        else: # 花蓮縣
-            if arrival_luodong > 22.5: # 19:00 出發 -> 22:30 到羅東 (危險)
-                return False, "⚠️ **太晚了！** 您抵達羅東時，恐接不到往花蓮的末班車。請務必在 **19:00 前** 出發。"
-        
-        return True, ""
-
-    def get_no_ticket_strategy(self, township, is_safe, warning_msg):
-        """邏輯 2-2: 沒訂到票的替代方案 (含安全閥)"""
-        is_south = "玉里" in township or "台東" in township or "池上" in township
+        is_safe = arrival_luodong < deadline
         
         plans = []
         
-        # 只有在時間安全時，才推薦鐵公路聯運
+        # 方案 A: 鐵公路聯運
         if is_safe:
             plans.append({
-                "title": "🚌 方案 A: 鐵公路聯運 (最穩)",
-                "route": "桃園 ➔ 台北轉運站 ➔ 羅東轉運站 ➔ 區間車往花蓮",
-                "desc": "國5客運有專用道，不塞車。到羅東後，火車班次非常多，保證有位子。",
-                "steps": [
-                    "**Step 1:** 從桃園搭火車/客運前往「台北轉運站」或「板橋客運站」。",
-                    "**Step 2:** 轉搭 **統聯(1663)、首都(1580)、台北客運(1071)** 前往羅東/花蓮。",
-                    "**Step 3:** 若客運只到羅東，下車後走到火車站(2分鐘)，轉搭區間車往花蓮(班次極多)。"
-                ],
-                "tags": ["推薦"]
+                "title": "🚌 方案 A: 鐵公路聯運 (推薦)",
+                "icon": "✅",
+                "desc": "國道客運(統聯/首都)走大客車專用道，**保證不塞車**。到羅東後，區間車像捷運一樣多。",
+                "route": "桃園 ➔ 台北/板橋轉運站 ➔ 羅東 ➔ 區間車",
+                "risk": "低"
             })
         else:
-            # 如果時間不安全，顯示紅色警告
             plans.append({
-                "title": "⛔ 警告：羅東轉乘已無車次",
+                "title": "⛔ 方案 A (已失效)",
+                "icon": "❌",
+                "desc": f"太晚了！你到羅東時已經沒有往{county}的火車了。",
                 "route": "此路不通",
-                "desc": warning_msg,
-                "steps": ["現在出發到羅東會接不到火車。", "請改搭計程車、在羅東住宿一晚，或改為 **高鐵南迴** 方案。"],
-                "tags": ["危險"]
+                "risk": "極高"
             })
 
+        # 方案 B: 樹林始發
         plans.append({
-            "title": "🚆 方案 B: 樹林始發站 (保底)",
-            "route": "桃園 ➔ 樹林車站 ➔ 轉搭區間快",
-            "desc": "不要在桃園等車！回頭搭到樹林(始發站)，有位子坐的機率大增。",
-            "steps": [
-                "**Step 1:** 買一張桃園往板橋/樹林的票，**逆向搭回「樹林站」**。",
-                "**Step 2:** 在樹林站 (東部幹線始發站) 排隊上車。",
-                "**Step 3:** 鎖定 **EMU900 區間快車**，椅子比普悠瑪好坐，且絕對有位子。"
-            ],
-            "tags": ["省錢"]
+            "title": "🚆 方案 B: 逆向操作 (樹林始發)",
+            "icon": "🛡️",
+            "desc": "不要在桃園等！買票**逆向搭回樹林站** (東部幹線起點)，直接上車搶自由座/站票。",
+            "route": "桃園 ➔ 樹林 (始發站) ➔ 花蓮/台東",
+            "risk": "中 (需排隊)"
         })
-        
-        if is_south:
+
+        # 方案 C: 高鐵南迴 (針對台東/南花蓮)
+        if "台東" in county or "玉里" in township:
             plans.append({
-                "title": "🔄 方案 C: 高鐵南迴 (神招)",
-                "route": "桃園高鐵 ➔ 左營 ➔ 台鐵往台東/玉里",
-                "desc": "完全避開北部與蘇花路段。雖然繞一圈，但這時候往台東的票比往花蓮好買。",
-                "steps": [
-                    "**Step 1:** 搭高鐵：桃園 ➔ 左營。",
-                    "**Step 2:** 轉搭台鐵：新左營 ➔ 台東/玉里 (南迴線)。",
-                    "**優勢:** 雖然貴且遠，但這是「用錢買確定性」的最佳解。"
-                ],
-                "tags": ["舒適"]
+                "title": "🚄 方案 C: 金錢換時間 (高鐵南迴)",
+                "icon": "🔄",
+                "desc": "完全避開蘇花路廊。雖然繞半個台灣，但**確定性最高**，且南迴票比北迴好買。",
+                "route": "桃園高鐵 ➔ 左營 ➔ 台鐵南迴線",
+                "risk": "低 (傷荷包)"
             })
+            
         return plans
 
 # ==========================================
 # Layer 3: 使用者介面 (Wizard UI)
 # ==========================================
 def main_app():
-    st.markdown("<h3 style='margin:0; color:#E63946;'>🧨 三一協會過年返鄉攻略</h3>", unsafe_allow_html=True)
-    st.markdown("<div class='origin-badge'>📍 桃園全區出發</div>", unsafe_allow_html=True)
-    
-    # Step 1
-    st.markdown("<div class='step-title'>1. 請問您的目前狀況？</div>", unsafe_allow_html=True)
-    user_status = st.radio(
-        "Status",
-        ["🚗 我有車，準備開車返鄉", 
-         "🎫 沒搶到火車票 (求救!)", 
-         "✅ 已經有票了 (查詢時刻)"],
-        label_visibility="collapsed"
-    )
-    
-    # Step 2
+    # Header 區域
+    st.markdown("<h2 style='text-align:center; color:#E63946;'>🧨 三一協會過年返鄉攻略</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#6C757D;'>會員專屬 AI 決策輔助系統 v2.0</p>", unsafe_allow_html=True)
     st.markdown("---")
-    st.markdown("<div class='step-title'>2. 目的地與時間</div>", unsafe_allow_html=True)
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        county = st.selectbox("縣市", ["花蓮縣", "台東縣"])
-        township = st.selectbox("鄉鎮", TOWNSHIP_DB[county])
-    with c2:
-        # 正確的 2026 農曆日期
-        date_str = st.selectbox("日期", [
-            "2/13 (五) 假期前1天 (下班狂奔)",
-            "2/14 (六) 連假第1天 (返鄉車潮)", 
-            "2/15 (日) 小年夜 (最後採買)",   
-            "2/16 (一) 除夕 (圍爐)",         
-            "2/17 (二) 初一 (走春)"          
-        ])
-        
-        # 下拉選單 (時間)
-        time_options = [f"{i:02d}:00" for i in range(24)]
-        time_str = st.selectbox("預計出發時間", time_options, index=7)
-        hour = int(time_str.split(":")[0])
-            
-    # Step 3
-    st.markdown("---")
-    
-    if st.button("🚀 分析最佳策略", type="primary"):
-        engine = StrategyEngine()
-        
-        # === 情境 A: 開車 ===
-        if "開車" in user_status:
-            advice, jam_factor, status = engine.get_driving_advice(date_str, hour)
-            base_time = 3.5 + (1.0 if "台東" in county else 0) + (0.5 if "南花蓮" in township else 0)
-            real_time = base_time * jam_factor
-            
-            st.markdown(f"#### 🚘 開車戰略報告")
-            st.info(f"**目的地:** {township} | **日期:** {date_str.split(' ')[0]}")
-            
-            with st.container(border=True):
-                st.markdown(f"### 預估耗時: {real_time:.1f} 小時")
-                st.markdown(advice)
-                if status == "暢通":
-                    st.success("✨ 完美決策！這個時間點出發是贏家。")
-                elif status == "塞爆":
-                    st.error("💀 強烈建議改期！或改在 **凌晨 03:00** 出發。")
-                    st.markdown("**替代方案:** 走台61 + 台2線濱海，雖然遠但車會動。")
 
-        # === 情境 B: 沒搶到票 (含轉乘安全閥) ===
-        elif "沒搶到" in user_status:
-            st.markdown(f"#### 🆘 沒票救援計畫")
-            st.warning(f"**目標:** 前往 {township} (桃園無直達火車/客運)")
+    # 全局設定 (置頂)
+    with st.container():
+        c1, c2, c3 = st.columns([1.2, 1, 1])
+        with c1:
+            county = st.selectbox("📍 回哪裡？", ["花蓮縣", "台東縣"])
+        with c2:
+            township = st.selectbox("🏠 鄉鎮", TOWNSHIP_DB[county])
+        with c3:
+            date_str = st.selectbox("📅 日期", [
+                "2/13 (五) 假前一天", "2/14 (六) 連假首日", 
+                "2/15 (日) 小年夜", "2/16 (一) 除夕"
+            ])
+
+    # 核心功能分流 (Tabs)
+    tab1, tab2, tab3 = st.tabs(["🚗 我要開車", "🎫 我沒搶到票", "✅ 我有票/查時刻"])
+
+    engine = StrategyEngine()
+
+    # === Tab 1: 開車決策 ===
+    with tab1:
+        st.write("#### 🕒 預計幾點從桃園出發？")
+        hour = st.slider("拖曳選擇出發時間 (24h制)", 0, 23, 7, key="drive_slider")
+        
+        if st.button("🚀 分析路況", key="btn_drive", type="primary"):
+            report = engine.get_driving_advice(date_str, hour)
             
-            # 安全閥檢查
-            is_safe, warning_msg = engine.check_connection_safety(hour, county)
+            # 結果呈現
+            st.markdown(f"### {report['status']}")
             
-            strategies = engine.get_no_ticket_strategy(township, is_safe, warning_msg)
+            # 進度條模擬擁塞度
+            jam_val = min(100, int((report['jam_factor'] - 1) * 50))
+            if jam_val < 0: jam_val = 0
+            st.progress(jam_val / 100, text=f"擁塞指數: {jam_val}%")
+            
+            # 內容卡片
+            st.markdown(f"""
+            <div class="info-card">
+                <b>💡 策略建議：</b><br>
+                {report['desc']}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # 高承載警示
+            if report['hov_warning']:
+                st.error(report['hov_warning'])
+                
+            # 估算時間
+            base_time = 3.5 + (1.0 if "台東" in county else 0)
+            real_time = base_time * report['jam_factor']
+            st.caption(f"🏁 預估抵達 {township} 耗時: 約 {real_time:.1f} 小時")
+
+    # === Tab 2: 沒票救援 ===
+    with tab2:
+        st.write("#### 🕒 預計最快何時能出發？")
+        hour_no_ticket = st.selectbox("選擇出發時間", range(6, 24), index=12, key="nt_time")
+        
+        if st.button("🚑 尋找替代方案", key="btn_no_ticket", type="primary"):
+            strategies = engine.get_transfer_strategy(township, hour_no_ticket, county)
+            
+            st.write("### 📋 您的最佳撤退路徑")
             for plan in strategies:
-                with st.container(border=True):
-                    st.markdown(f"**{plan['title']}**")
-                    st.markdown(f"📍 路線: `{plan['route']}`")
-                    
-                    if "⛔" in plan['title']:
-                        st.error(plan['desc']) # 紅色警告
-                    else:
-                        st.markdown(f"💡 {plan['desc']}")
-                    
-                    st.markdown("---")
-                    for step in plan['steps']:
-                        st.markdown(f"- {step}")
+                with st.expander(f"{plan['icon']} {plan['title']}", expanded=("推薦" in plan['title'])):
+                    st.markdown(f"**路線：** `{plan['route']}`")
+                    st.info(plan['desc'])
+                    if plan['risk'] == "極高":
+                        st.warning("⚠️ 此路徑風險極高，請勿嘗試")
 
-        # === 情境 C: 有票 (表格化時刻表) ===
+    # === Tab 3: 時刻表查詢 ===
+    with tab3:
+        st.write("#### 🚄 參考車次 (桃園出發)")
+        st.caption("僅列出熱門直達車次，完整資訊請以台鐵官網為準。")
+        
+        # 數據處理：Highlight 重點
+        df = pd.DataFrame(TRAIN_DATA)
+        st.dataframe(
+            df, 
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "特徵": st.column_config.TextColumn("特徵", help="班次特性"),
+            }
+        )
+        
+        st.markdown("---")
+        st.markdown(f"**🚌 抵達 {township} 後轉乘：**")
+        if "玉里" in township or "富里" in township:
+             st.success("💡 建議搭到 **玉里站**，站前租車或轉乘最方便。")
+        elif "豐濱" in township:
+             st.success("💡 需在花蓮站轉搭 **1140/1145 客運** (海線)。")
         else:
-            st.markdown(f"#### ✅ 行程確認")
-            st.success(f"已規劃前往：**{township}**")
-            
-            st.markdown("### 📋 參考時刻表 (以桃園站為主)")
-            st.caption("ℹ️ 中壢/內壢/埔心請自行 +10~15 分鐘")
-            
-            # 製作表格
-            df = pd.DataFrame(TRAIN_DATA)
-            df.set_index('車次', inplace=True) 
-            st.table(df)
-            
-            st.caption("※ 以上時間僅供參考，請以台鐵官網實際公告為準")
+             st.success("💡 車站前計程車充足，或請家人騎車來載。")
+             
+        st.link_button("🔗 前往台鐵訂票系統", "https://www.railway.gov.tw/")
 
-            st.markdown("---")
-            st.markdown("### 🚍 抵達後接駁建議")
-            if "豐濱" in township:
-                st.info("💡 抵達花蓮站後，請轉搭 **花蓮客運 1140/1145** 往海線。")
-            elif "富里" in township or "玉里" in township:
-                st.info("💡 建議搭到 **玉里站** 下車，班次較多，再轉計程車或公車。")
-            elif "台東" in township:
-                 st.info("💡 抵達台東站後，市區公車或普悠瑪客運很方便。")
-            else:
-                 st.info("💡 抵達車站後，站前計程車或租車是最快選擇。")
-
-# 登入頁面
+# 登入頁面 (簡約風)
 def login_page():
-    st.container(height=50, border=False)
-    st.markdown("<h2 style='text-align: center;'>🔒 協會會員驗證</h2>", unsafe_allow_html=True)
-    st.info("會員請向三一協會索取密碼")
-    pwd = st.text_input("密碼", type="password", label_visibility="collapsed")
-    if st.button("登入", type="primary"):
-        if pwd == "1234":
-            st.session_state['logged_in'] = True
-            st.rerun()
-        else: st.error("密碼錯誤")
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        st.markdown("<h2 style='text-align: center; color:#333;'>🔐 會員驗證</h2>", unsafe_allow_html=True)
+        st.info("請輸入協會通行碼 (1234)")
+        pwd = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="請輸入密碼")
+        if st.button("登入系統", type="primary"):
+            if pwd == "1234":
+                st.session_state['logged_in'] = True
+                st.rerun()
+            else: 
+                st.error("密碼錯誤，請重新輸入")
 
 if __name__ == "__main__":
     if not st.session_state['logged_in']: login_page()
